@@ -72,7 +72,7 @@ public:
     }
 
     // Set the base probability 
-    void set_probability(int p) 
+    void set_probability(double p) 
     {
         probability_ = p;
     }
@@ -163,7 +163,8 @@ public:
         #pragma omp parallel for shared(cascades)
         for (int i = 0; i < n_cascades; ++i) 
         {
-            cascades[i] = generate_cascade(seed);
+            auto cascade = generate_cascade(seed);
+            cascades[i] = std::move(cascade);
         }
         return cascades;
     }

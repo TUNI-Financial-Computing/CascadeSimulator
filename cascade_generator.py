@@ -1,12 +1,23 @@
 import cascade_generator as cg
+import networkx as nx  
 
-C = cg.CascadeGenerator()
-graph = [[1,2], [2,3], [3,4], [4,5], [5,0], [0,1]]
-C.set_graph(graph)
-probs = [[1.0, 1.0], [0.3, 0.4], [0.5, 0.6], [0.7, 0.8], [0.9, 1.0], [0.11, 0.12]]
-C.set_probabilities(probs)
-C.set_symptom_probability(0.5)
-cascade = C.generate_cascade([0])
-print(cascade)
-cascada = C.generate_cascades([0], 5)
-print(cascada)
+## Generate a random graph of 10 000 nodes using networkx
+G = nx.fast_gnp_random_graph(10000, 0.001)
+## Extract the adjaceny list 
+adj_list = [list(G.neighbors(node)) for node in G.nodes()]
+# Set probability to 0.2
+p = 0.2
+q = 0.5
+
+CG = cg.CascadeGenerator()
+CG.set_graph(adj_list)
+CG.set_probability(p)
+CG.set_symptom_probability(q)
+seed = [0]
+
+## Measure the time it takes to generate a million cascades.
+import time
+start = time.time()
+cascada = CG.generate_cascades(seed, 10000)
+end = time.time()
+print("Time to generate 10 000 cascades: ", end-start)
