@@ -1,24 +1,28 @@
-# Compiler and flags
-CXX = g++
-CXXFLAGS = -O3 -Wall -shared -std=c++20 -fPIC
+# Makefile for building cascade_generator Python extension on macOS (Apple Silicon)
+# using the Homebrew-installed LLVM at /opt/homebrew/opt/llvm/bin/clang++.
 
-## Make sure to change the path to your python include and lib directories
-PYTHON_INCLUDE = $(shell python3-config --includes)
-PYBIND11_INCLUDE = -I/Users/hansen/anaconda3/envs/george/lib/python3.12/site-packages/pybind11/include
-PYTHON_LIB_DIR = /Users/hansen/anaconda3/envs/george/lib
-PYTHON_LIB = -L$(PYTHON_LIB_DIR) -lpython3.12
+CXX = /opt/homebrew/opt/llvm/bin/clang++
+CXXFLAGS = -std=c++20 -O3 -fPIC -fopenmp \
+           -undefined dynamic_lookup  # <-- Key flag on macOS
+PYBIND11_INCLUDES = $(shell python3 -m pybind11 --includes)
+EXT_SUFFIX = $(shell python3-config --extension-suffix)
 
-# Output shared library
-TARGET = cascade_generator$(shell python3-config --extension-suffix)
+# Paths to Homebrew LLVM's includes and libraries (Apple Silicon).
+LLVM_INCLUDE_DIR = /opt/homebrew/opt/llvm/include
+LLVM_LIB_DIR = /opt/homebrew/opt/llvm/lib
 
-# Source files
-SRCS = cascade_generator.cpp
-OBJS = $(SRCS:.cpp=.o)
+# Name of the compiled Python extension
+TARGET = cascade_generator$(EXT_SUFFIX)
 
-# Build shared library with explicit Python & pybind11 linking
-$(TARGET): $(SRCS)
-	$(CXX) $(CXXFLAGS) $(PYTHON_INCLUDE) $(PYBIND11_INCLUDE) -o $(TARGET) $(SRCS) $(PYTHON_LIB) -undefined dynamic_lookup
+all: $(TARGET)
 
-# Clean build files
+$(TARGET): cascade_generator.cpp
+	$(CXX) $(CXXFLAGS) \
+	    $(PYBIND11_INCLUDES) \
+	    -I$(LLVM_INCLUDE_DIR) \
+	    -L$(LLVM_LIB_DIR) \
+	    cascade_generator.cpp \
+	    -shared -o $(TARGET)
+
 clean:
-	rm -f $(TARGET) $(OBJS)
+	rm -f $(TARGET)

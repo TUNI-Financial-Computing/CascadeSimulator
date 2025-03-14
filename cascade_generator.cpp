@@ -1,175 +1,189 @@
 #include <pybind11/pybind11.h>
-#include <pybind11/stl.h>        // For automatic conversion of STL containers
+#include <pybind11/stl.h>
 #include <vector>
-#include <utility>               // For std::pair
-//#include <omp.h>
-#include <list>
-#include <iostream>
-#include <algorithm>
-#include <cmath>
-#include <set>
-// Include time measuring and precision setting
-#include <chrono>
-#include <iomanip>
-// Library for random number generation
-#include <random>
-#include <stdexcept>
+#include <tuple>
 #include <queue>
 
-#include "cascade_generator.h"
+// 1) Define a struct to hold (node, arrival_time)
+struct QNode {
+    int node;
+    double arrival_time;
 
-namespace py = pybind11;
+    // Optional: a constructor for convenience
+    QNode(int n, double t) : node(n), arrival_time(t) {}
+};
 
-CascadeGenerator::CascadeGenerator(const std::vector<std::vector<int>>& graph, parameters& params) {
-    _graph_adj = graph;
-    _params = params;
-    _num_nodes = graph.size();
-    // the number of edges is the total number of edges in the graph;
-    // this is the sum of the number of edges in each node's adjacency list
-    _num_edges = 0;
-    for (int i = 0; i < _num_nodes; i++) {
-        _num_edges += _graph_adj[i].size();
-    }
-    bool _use_delay = params.delays.size() > 0;
-    if (_use_delay) {
-        if (params.delays.size() != _num_nodes) {
-            throw std::invalid_argument("The number of delays must be equal to the number of edges in the graph");
-        }
-    }
-    bool _use_decay = params.decays.size() > 0;
-    if (_use_decay) {
-        if (params.decays.size() != _num_nodes) {
-            throw std::invalid_argument("The number of decays must be equal to the number of nodes in the graph");
-        }
-    }
-    bool _use_IC = params.t_prob.size() > 0;
-    if (_use_IC) {
-        if (params.t_prob.size() != _num_nodes) {
-            throw std::invalid_argument("The number of transmission probabilities must be equal to the number of edges in the graph");
-        }
-    }
-    _use_LT = params.thresholds.size() > 0;
-    _symptoms = params.s_prob.size() > 0;
-    if (!_use_IC && !_use_LT) {
-        throw std::invalid_argument("At least one of the following parameters must be provided: t_prob, s_prob");
-    }
-}
-
-CascadeGenerator::~CascadeGenerator() 
-{
-    // Destructor
-}
-
-using QueueEntry = std::tuple<int, double>;
-
-// Custom comparator: makes priority queue a min-heap (smallest double first)
-struct Compare {
-    bool operator()(const QueueEntry& a, const QueueEntry& b) {
-        return std::get<1>(a) > std::get<1>(b);  // Min-heap: smaller double has higher priority
+// 2) Define a custom comparator that orders by arrival_time
+//    If you want the earliest (smallest) arrival_time on top, 
+//    you compare '>' in the operator(), which effectively 
+//    turns it into a min-heap.
+struct CompareByTime {
+    bool operator()(const QNode& a, const QNode& b) const {
+        return a.arrival_time > b.arrival_time; 
     }
 };
 
 
-// Generate a single cascade
-cascade CascadeGenerator::get_cascade(const std::vector<int>& seed_set) {
-    // Function to generate a single cascade
-    cascade c = {};
-    std::priority_queue<QueueEntry, std::vector<QueueEntry>, Compare> q;    
-    // Every seed vertex creates a default observation at time 0.0
-    for (int i = 0; i < seed_set.size(); i++) {
-        q.push(std::make_tuple(seed_set[i], 0.0));
-        c.push_back(std::make_tuple(seed_set[i], 0.0, Observation()));
-    }
-    std::vector<bool> active(_num_nodes, false);
-    std::vector<bool> finished(_num_nodes, false);
-    std::vector<double> threshold_remaining = _params.thresholds;
-    // Initialize the random number generator
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-    // Initialize the time of the cascade
-    double t = 0.0;
-    // while the queue is not empty
-    while (!q.empty())
+
+
+// Define the CascadeGenerator class
+class CascadeGenerator {
+private:
+    std::vector<std::vector<int>> graph_;
+    double probability_;
+    double symptom_probability_;
+    std::vector<std::vector<double>> edge_probs_; 
+    std::vector<double> node_symp_probs_;
+    std::vector<double> node_thresholds_;
+    std::vector<std::vector<double>> edge_effects_;
+    std::vector<std::vector<double>> edge_delays_;
+    bool delayed_;
+    bool symptomatic_;
+    bool thresholded_;
+    bool edge_probabilities_;
+    int n_nodes_;
+
+    double get_delay(int i, int j) 
     {
-        auto [node, time] = q.top();
-        q.pop();
-        // if the node is already active, skip it
-        if (finished[node]) {
-            continue;
+        assert(delayed_);
+        // The delay is the time it takes for infection to spread from node i to node j;
+        // This is a random variable, whose expecation is given by the edge delay
+        double expected_delay = edge_delays_[i][j];
+        // The delay is exponential with expectasion expected_delay:
+        // The probability density function is f(x) = (1/expected_delay) * exp(-x/expected_delay)
+        double delay =  expected_delay * (-std::log(1 - std::rand() / (RAND_MAX + 1.0)));
+
+        return delay;
+    }
+    
+
+public:
+    // Constructor that takes a graph
+    CascadeGenerator()
+        : graph_({}), probability_(0), symptom_probability_(0), edge_probs_({}), node_symp_probs_({}), node_thresholds_({}), edge_effects_({}), edge_delays_({}), delayed_(false), symptomatic_(false), thresholded_(false), edge_probabilities_(false), n_nodes_(0) 
+    {
+        // void
+    }
+    
+    void set_graph(const std::vector<std::vector<int>>& graph) 
+    {
+        graph_ = graph;
+        n_nodes_ = graph.size();
+    }
+
+    // Set the base probability 
+    void set_probability(int p) 
+    {
+        probability_ = p;
+    }
+    void set_probabilities(const std::vector<std::vector<double>>& edge_probs) 
+    {
+        edge_probs_ = edge_probs;
+        edge_probabilities_ = true;
+    }
+
+    // Set the symptom probability (polymorphism as either int or vector)
+    void set_symptom_probability(double q) 
+    {
+        symptom_probability_ = q;
+    }
+    void set_symptom_probabilities(const std::vector<double>& node_symp_probs) 
+    {
+        node_symp_probs_ = node_symp_probs;
+        symptomatic_ = true;
+    }
+
+    void set_delays(const std::vector<std::vector<double>>& edge_delays) 
+    {
+        edge_delays_ = edge_delays;
+        delayed_ = true;
+    }
+
+    std::vector<std::tuple<int, double, double>> generate_cascade(const std::vector<int>& seed) 
+    {
+        std::vector<std::tuple<int, double, double>> cascade = {};
+        // Make a priority queue of active nodes and initialize with the seed
+        std::priority_queue<QNode, std::vector<QNode>, CompareByTime> active;
+        std::vector<bool> infected(n_nodes_, false);
+        std::vector<bool> is_active(n_nodes_, false); 
+        for (int node : seed) {
+            active.push(QNode(node, 0.0));
+            infected[node] = true;
+            is_active[node] = true;
         }
-        // mark the node as active
-        active[node] = true;
-        finished[node] = true;
-        // Now go through the neighbours of the node
-        for (int neighbour: _graph_adj.at(node))
+        
+        // Include the seed in the cascade with 0 as symptom and time (node, time, symptom)
+        for (int node : seed) {
+            cascade.push_back(std::make_tuple(node, 0.0, 0.0));
+        }
+        while (!active.empty())
         {
-            // if the neighbour is already active, skip it
-            if (active[neighbour]) {
+            QNode qnode = active.top();
+            active.pop();
+            int node = qnode.node;
+            double time = qnode.arrival_time;
+            if (!is_active[node]) {
                 continue;
             }
-            bool activated = false;
-            // if the neighbour is not active, check if it gets activated
-            double prob = dis(gen);
-            if (_use_IC && prob < _params.t_prob[node][neighbour]) {
-                activated = true;
-            }
-            if (_use_LT)
+            is_active[node] = false;
+            // For each neighbor of the node
+            for (int j = 0; j < graph_[node].size(); ++j) 
             {
-                threshold_remaining[neighbour] -= _params.a_b[node][neighbour];
-                if (threshold_remaining[neighbour] <= 0.0)
+                int neighbor = graph_[node][j];
+                if (infected[neighbor]) 
                 {
-                    activated = true;
+                    continue;
                 }
-            }
-            if (activated)
-            {
-                active[neighbour] = true;
-                // if the neighbour gets activated, add it to the queue
-                double delay = _use_delay?_params.delays[node][neighbour]:1.0;
-                double activation_time = time + delay;
-                q.push(std::make_tuple(neighbour, activation_time));
-                // add the neighbour to the cascade
-                Observation obs;
-                obs.set_symptom(1);
-                if (_symptoms) {
-                    double symptom_prob = dis(gen);
-                    if (symptom_prob > _params.s_prob[neighbour]) {
-                        obs.set_symptom(0);
-                    }
-                } 
-                c.push_back(std::make_tuple(neighbour, activation_time, obs));
+                double p = edge_probabilities_? edge_probs_[node][j] : probability_;
+                double q = symptomatic_? node_symp_probs_[neighbor] : symptom_probability_;
+                double delay = time + (delayed_? get_delay(node, neighbor) : 1.0);
+                if (std::rand() / (RAND_MAX + 1.0) > p)
+                {
+                    continue;
+                }
+                if (std::rand() / (RAND_MAX + 1.0) < q)
+                {
+                    cascade.push_back(std::make_tuple(neighbor, delay, 1.0));
+                }
+                else
+                {
+                    cascade.push_back(std::make_tuple(neighbor, delay, 0.0));
+                }
+                active.push(QNode(neighbor, delay));
+                infected[neighbor] = true; 
+                is_active[neighbor] = true;
             }
         }
+        return cascade;
     }
-    return c;
-}
-
-// Generate multiple cascades
-std::vector<cascade> CascadeGenerator::get_cascades(const std::vector<int>& seed_set, int num_cascades)
-{
-    // Function to generate multiple cascades
-    std::vector<cascade> cascades(num_cascades);
-    #pragma omp parallel for shared(cascades)
-    for (int i = 0; i < num_cascades; i++) {
-        cascades[i] = get_cascade(seed_set);
+    
+    std::vector<std::vector<std::tuple<int,double,double>>> generate_cascades(const std::vector<int>& seed, int n_cascades) 
+    {
+        std::vector<std::vector<std::tuple<int,double,double>>> cascades(n_cascades);
+        #pragma omp parallel for shared(cascades)
+        for (int i = 0; i < n_cascades; ++i) 
+        {
+            cascades[i] = generate_cascade(seed);
+        }
+        return cascades;
     }
-    return cascades;
-}
- 
+};
 
-// Python module definition
+// Create the Python module named cascade_generator
+namespace py = pybind11;
+
 PYBIND11_MODULE(cascade_generator, m) {
-    py::class_<parameters>(m, "parameters")
-        .def(py::init<>())
-        .def_readwrite("t_prob", &parameters::t_prob)
-        .def_readwrite("s_prob", &parameters::s_prob)
-        .def_readwrite("thresholds", &parameters::thresholds)
-        .def_readwrite("delays", &parameters::delays)
-        .def_readwrite("decays", &parameters::decays);
-
     py::class_<CascadeGenerator>(m, "CascadeGenerator")
-        .def(py::init<std::vector<std::vector<int>>&, parameters&>())
-        .def("get_cascade", &CascadeGenerator::get_cascade)
-        .def("get_cascades", &CascadeGenerator::get_cascades);
+        .def(py::init<>())
+        .def("set_graph", &CascadeGenerator::set_graph)
+        .def("set_probability", &CascadeGenerator::set_probability)
+        .def("set_probabilities", &CascadeGenerator::set_probabilities)
+        .def("set_symptom_probability", &CascadeGenerator::set_symptom_probability)
+        .def("set_symptom_probabilities", &CascadeGenerator::set_symptom_probabilities)
+        .def("set_delays", &CascadeGenerator::set_delays)
+        .def("generate_cascade", &CascadeGenerator::generate_cascade)
+        .def("generate_cascades", &CascadeGenerator::generate_cascades)
+        .def("set_symptom_probability", &CascadeGenerator::set_symptom_probability)
+        .def("set_symptom_probabilities", &CascadeGenerator::set_symptom_probabilities);
 }
+
