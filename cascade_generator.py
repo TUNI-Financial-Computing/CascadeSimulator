@@ -2,6 +2,15 @@ import cascade_generator as cg
 import networkx as nx  
 
 ## Make a python wrapper class for the c++ cascade generator
+""" The CascadeGenerator class is a wrapper class for the C++ CascadeGenerator class.
+It provides a simple interface to generate cascades on a given graph.
+
+Initializer inputs:
+  graph: a networkx graph object representing the underlying graph, weights represent probabilities
+  cascade_model: a string representing the cascade model to use. For now, only "IC" is supported
+  symptom_rates: a list of floats representing the probability of a node showing symptoms
+  delay_times: a list of lists of floats representing the delay times for edge in the graph. If None, the delay times are set to 1, i.e., regular IC model
+"""
 class CascadeGenerator:
     def __init__(
       self, 
@@ -24,6 +33,14 @@ class CascadeGenerator:
         self.cascade_model_.set_delays(delay_times)
       if symptom_rates is not None:
         self.cascade_model_.set_symptom_probabilities(symptom_rates)
+
+    """ The Generate() function generates num_samples cascades given a seed set of nodes.
+    Args:
+      seed: list of integers representing the seed set of nodes
+      num_samples: integer representing the number of cascades to generate
+    Returns:
+      list of lists of triplets representing the cascades. Each triplet is of the form (node, time, symptom)
+    """
     def Generate(self, seed: list[int], num_samples: int):
       return self.cascade_model_.generate_cascades(seed, num_samples)
 
