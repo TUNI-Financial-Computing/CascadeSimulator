@@ -64,6 +64,11 @@ public:
     {
         // void
     }
+
+    void set_random_seed(int seed) 
+    {
+        std::srand(seed);
+    }
     
     void set_graph(const std::vector<std::vector<int>>& graph) 
     {
@@ -99,7 +104,7 @@ public:
         delayed_ = true;
     }
 
-    std::vector<std::tuple<int, double, double>> generate_cascade(const std::vector<int>& seed) 
+    std::vector<std::tuple<int, double, double>> generate_cascade_pq(const std::vector<int>& seed) 
     {
         std::vector<std::tuple<int, double, double>> cascade = {};
         // Make a priority queue of active nodes and initialize with the seed
@@ -152,6 +157,59 @@ public:
                 active.push(QNode(neighbor, delay));
                 infected[neighbor] = true; 
                 is_active[neighbor] = true;
+            }
+        }
+        return cascade;
+    }
+
+    std::vector<std::tuple<int, double, double>> generate_cascade(const std::vector<int>& seed) 
+    {
+        if (delayed_)
+        {
+            return generate_cascade_pq(seed);
+        }
+        std::vector<std::tuple<int, double, double>> cascade = {};
+        // Make a priority queue of active nodes and initialize with the seed
+        std::list<std::pair<int,double>> active;
+        std::vector<bool> infected(n_nodes_, false);
+        for (int node : seed) {
+            active.push_back(std::make_pair(node, 0.0));
+            infected[node] = true;
+        }        
+        // Include the seed in the cascade with 0 as symptom and time (node, time, symptom)
+        for (int node : seed) {
+            cascade.push_back(std::make_tuple(node, 0.0, 0.0));
+        }
+        while (!active.empty())
+        {
+            std::pair<int,double> current = active.front();
+            active.pop_front();
+            int node = current.first;
+            double time = current.second;
+            // For each neighbor of the node
+            for (int j = 0; j < graph_[node].size(); ++j) 
+            {
+                int neighbor = graph_[node][j];
+                if (infected[neighbor]) 
+                {
+                    continue;
+                }
+                double p = edge_probabilities_? edge_probs_[node][j] : probability_;
+                double q = symptomatic_? node_symp_probs_[neighbor] : symptom_probability_;
+                if (std::rand() / (RAND_MAX + 1.0) > p)
+                {
+                    continue;
+                }
+                if (std::rand() / (RAND_MAX + 1.0) < q)
+                {
+                    cascade.push_back(std::make_tuple(neighbor, time + 1.0, 1.0));
+                }
+                else
+                {
+                    cascade.push_back(std::make_tuple(neighbor, time + 1.0, 0.0));
+                }
+                active.push_back(std::make_pair(neighbor, time + 1.0));
+                infected[neighbor] = true; 
             }
         }
         return cascade;
