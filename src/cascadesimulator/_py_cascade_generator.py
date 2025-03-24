@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Optional
 import cascadesimulator.cascade_generator_cpp as cg  # type: ignore
 import networkx as nx
@@ -12,12 +13,34 @@ Initializer inputs:
     symptom_rates: a list of floats representing the probability of a node showing symptoms
     delay_times: a list of lists of floats representing the delay times for edge in the graph. If None, the delay times are set to 1, i.e., regular IC model
 """
+
+
+@dataclass
+class Observation:
+    node_id: int
+    time: float
+    symptom: float
+
+
+@dataclass
+class Cascade:
+    cascade: list[Observation]
+
+    def __getitem__(self, index: int) -> Observation:
+        """Allows direct indexing into the Cascade."""
+        return self.cascade[index]
+
+    def __len__(self) -> int:
+        """Returns the number of observations in the cascade."""
+        return len(self.cascade)
+
+
 class pyCascadeGenerator:
     def __init__(
         self,
         graph: nx.Graph,
         cascade_model: str = "IC",
-        symptom_rates: Optional[list[float]] = None,
+        q: Optional[list[float]] = None,
         delay_times: Optional[list[float]] = None,
     ):
         if (cascade_model != "IC"):
@@ -32,8 +55,8 @@ class pyCascadeGenerator:
         self.cascade_model_.set_probabilities(self.probs)
         if delay_times is not None:
             self.cascade_model_.set_delays(delay_times)
-        if symptom_rates is not None:
-            self.cascade_model_.set_symptom_probabilities(symptom_rates)
+        if q is not None:
+            self.cascade_model_.set_symptom_probabilities(q)
 
     """ The Generate() function generates num_samples cascades given a seed set of nodes.
     Args:
@@ -42,8 +65,15 @@ class pyCascadeGenerator:
     Returns:
         list of lists of triplets representing the cascades. Each triplet is of the form (node, time, symptom)
     """
-    def generate(self, seeds: list[int], num_samples: int):
-        return self.cascade_model_.generate_cascades(seeds, num_samples)
+    def generate(self, seeds: list[int], num_cascades: int = 1) -> Cascade | list[Cascade]:
+        cascades = []
+        for _ in range(num_cascades):
+            cascade = self.cascade_model_.generate_cascade(seeds)
+            cascade = [Observation(*args) for args in cascade]
+            cascades.append(Cascade(cascade))
+        if num_cascades == 1:
+            return cascades[0]
+        return cascades
 
 ## Example usage:
 if __name__ == "__main__":
@@ -55,7 +85,7 @@ if __name__ == "__main__":
     cascade_generator = pyCascadeGenerator(
         graph=graph,
         cascade_model="IC",
-        symptom_rates=symptom_probabilities
+        q=symptom_probabilities
     )
     seed = [0]
     num_samples = 10
