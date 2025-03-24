@@ -1,5 +1,5 @@
 from typing import Optional
-import cascadesimulator.cascade_generator as cg  # type: ignore
+import cascadesimulator.cascade_generator_cpp as cg  # type: ignore
 import networkx as nx
 
 ## Make a python wrapper class for the c++ cascade generator

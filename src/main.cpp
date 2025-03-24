@@ -4,6 +4,10 @@
 #include <tuple>
 #include <queue>
 
+
+std::string hello_from_bin() { return "Hello from CascadeSimuulator in main.cpp!22"; }
+
+
 // 1) Define a struct to hold (node, arrival_time)
 struct QNode {
     int node;
@@ -231,7 +235,7 @@ public:
 // Create the Python module named cascade_generator
 namespace py = pybind11;
 
-PYBIND11_MODULE(cascade_generator, m) {
+PYBIND11_MODULE(cascade_generator_cpp, m) {
     py::class_<CascadeGenerator>(m, "CascadeGenerator")
         .def(py::init<>())
         .def("set_graph", &CascadeGenerator::set_graph)
@@ -244,4 +248,8 @@ PYBIND11_MODULE(cascade_generator, m) {
         .def("generate_cascades", &CascadeGenerator::generate_cascades)
         .def("set_symptom_probability", &CascadeGenerator::set_symptom_probability)
         .def("set_symptom_probabilities", &CascadeGenerator::set_symptom_probabilities);
+
+    m.def("hello_from_bin", &hello_from_bin, R"pbdoc(
+        A function that returns a Hello string.
+        )pbdoc");
 }

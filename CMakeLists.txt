@@ -4,5 +4,5 @@ project(${SKBUILD_PROJECT_NAME} LANGUAGES CXX)
 set(PYBIND11_FINDPYTHON ON)
 find_package(pybind11 CONFIG REQUIRED)
 
-pybind11_add_module(_py_cascade_generator MODULE src/main.cpp)
-install(TARGETS _py_cascade_generator DESTINATION ${SKBUILD_PROJECT_NAME})
+pybind11_add_module(cascade_generator_cpp MODULE src/main.cpp)
+install(TARGETS cascade_generator_cpp DESTINATION ${SKBUILD_PROJECT_NAME})
