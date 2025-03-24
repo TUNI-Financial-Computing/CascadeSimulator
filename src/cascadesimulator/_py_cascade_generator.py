@@ -1,4 +1,5 @@
-import cascadesimulator.cascade_generator as cg
+from typing import Optional
+import cascadesimulator.cascade_generator as cg  # type: ignore
 import networkx as nx
 
 ## Make a python wrapper class for the c++ cascade generator
@@ -14,10 +15,10 @@ Initializer inputs:
 class pyCascadeGenerator:
     def __init__(
         self,
-        graph: nx.Graph = None,
+        graph: nx.Graph,
         cascade_model: str = "IC",
-        symptom_rates: list[float] = None,
-        delay_times: list = None,
+        symptom_rates: Optional[list[float]] = None,
+        delay_times: Optional[list[float]] = None,
     ):
         if (cascade_model != "IC"):
           raise NotImplementedError("Only IC model is supported for now")
