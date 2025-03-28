@@ -35,7 +35,7 @@ pip install git+https://github.com/TUNI-Financial-Computing/CascadeSimulator.git
 2. Install CascadeSimulator:
 
    ```bash
-   pip install git+https://github.com/TUNI-Financial-Computing/CascadeSimulator.git@1-test-cascadesimulator-installation-and-functionality
+   pip install git+https://github.com/TUNI-Financial-Computing/CascadeSimulator.git
    ```
 
 ## Usage
