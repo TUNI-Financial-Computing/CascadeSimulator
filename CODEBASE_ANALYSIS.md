@@ -7,6 +7,41 @@
 
 CascadeSimulator is a Python package with C++ backend (via pybind11) for simulating cascades in networks using the Independent Cascade (IC) model. The codebase is relatively small but has several areas for improvement in code quality, documentation, testing, and functionality.
 
+**PLANNED MAJOR FEATURE:** Time-based cutoff support for cascade generation with backward compatibility and optimized performance.
+
+---
+
+## Planned Major Enhancement: Time Cutoff Feature
+
+### Feature Overview
+Add support for time-based cutoff in cascade simulation to allow early termination at a specified time step. This enables:
+- Efficient simulation of early-stage cascades
+- Memory savings for large-scale simulations
+- Analysis of cascade evolution at specific time points
+- Support for time-windowed analyses
+
+### Requirements
+1. **Backward Compatibility**: All existing code must continue to work without modification
+2. **Optional Parameter**: `cutoff` parameter defaults to `None` (no cutoff)
+3. **Performance**: Cutoff should provide actual speedup, not just post-filtering
+4. **Correctness**: Must maintain statistical properties of the cascade model
+
+### Design Considerations
+- **Early Termination**: Stop cascade propagation when time exceeds cutoff
+- **Include Boundary Events**: Events AT cutoff time should be included
+- **Priority Queue Efficiency**: Leverage existing PQ structure for delayed cascades
+- **Non-delayed Optimization**: Use depth/generation count for discrete time steps
+
+### Implementation Challenges
+1. How to handle cutoff in both delayed and non-delayed modes
+2. Ensuring nodes at exactly cutoff time are included
+3. Maintaining thread safety with new parameter
+4. Memory management for partial cascades
+5. API design for Python wrapper
+
+### Performance Optimization Strategy
+See detailed implementation plan in TODO.md
+
 ---
 
 ## Codebase Overview
@@ -186,21 +221,27 @@ The C++ class has `generate_cascades()` method for batch generation, but Python 
 - No performance characteristics documentation
 - Type stubs are incomplete
 
-### 4. **No Logging**
+### 4. **No Time-based Cutoff Support**
+- Cannot stop cascade generation at specific time
+- Must generate complete cascade even if only early stages needed
+- Wastes computation and memory for time-windowed analyses
+- No support for temporal analysis of cascade evolution
+
+### 5. **No Logging**
 - No way to debug what's happening during cascade generation
 - No progress indicators for large batch jobs
 
-### 5. **Limited Cascade Models**
+### 6. **Limited Cascade Models**
 - Only IC model implemented
 - README claims "various cascade models" but only IC exists
 - Could add: Linear Threshold, Triggering models, etc.
 
-### 6. **No Cascade Analysis Tools**
+### 7. **No Cascade Analysis Tools**
 - No built-in functions for cascade statistics
 - No visualization helpers
 - No export to standard formats
 
-### 7. **No Performance Optimizations**
+### 8. **No Performance Optimizations**
 - C++ code not optimized with compiler flags
 - No SIMD usage
 - No GPU support mentioned

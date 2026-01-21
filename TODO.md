@@ -1,5 +1,266 @@
 # TODO List for CascadeSimulator Improvements
 
+## MAJOR FEATURE: Time Cutoff Support
+
+### Overview
+Implement time-based cutoff parameter for cascade generation with full backward compatibility and optimal performance.
+
+### Implementation Plan
+
+#### Phase 1: Design & Architecture (Complete First)
+
+**Step 1: API Design**
+- [ ] Design C++ API for cutoff parameter
+  - Add `double cutoff_time_` member variable (default: -1.0 for no cutoff)
+  - Add `bool use_cutoff_` flag for performance
+  - Add `void set_cutoff(double cutoff_time)` method
+  - Update method signatures to accept optional cutoff
+- [ ] Design Python API for cutoff parameter
+  - Add `cutoff: Optional[float] = None` to `generate()` method
+  - Ensure backward compatibility (existing calls work unchanged)
+  - Update type hints and docstrings
+
+**Step 2: Performance Analysis**
+- [ ] Analyze cutoff check cost in tight loop
+  - Profile branch prediction impact
+  - Compare: check every iteration vs. priority queue early exit
+  - Measure overhead of cutoff=None vs no cutoff at all
+- [ ] Determine optimal implementation per mode:
+  - **Delayed mode (PQ)**: Check cutoff when popping from queue
+  - **Non-delayed mode**: Check generation depth OR time counter
+  - **Batch mode**: Apply cutoff to all cascades efficiently
+
+**Step 3: Algorithm Design**
+- [ ] Design cutoff logic for `generate_cascade_pq()` (delayed cascades)
+  ```
+  Algorithm:
+  1. When popping node from PQ, check if time > cutoff
+  2. If yes, break loop early (don't process this node)
+  3. When adding neighbors, only add if new_time <= cutoff
+  4. Result: Natural early termination, no wasted work
+  ```
+- [ ] Design cutoff logic for `generate_cascade()` (non-delayed cascades)
+  ```
+  Algorithm:
+  1. Track current time (increments by 1.0 each generation)
+  2. When time exceeds cutoff, stop processing active queue
+  3. Alternative: Track generation depth and stop at ceil(cutoff)
+  4. Include all nodes at time <= cutoff
+  ```
+- [ ] Handle edge cases:
+  - Cutoff = 0.0 (only seed nodes)
+  - Cutoff between time steps (for discrete time)
+  - Cutoff before any propagation
+  - Very large cutoff (essentially no cutoff)
+
+#### Phase 2: Core Implementation
+
+**C++ Implementation**
+- [ ] Add cutoff support to `CascadeGenerator` class
+  - [ ] Add private members: `double cutoff_time_`, `bool use_cutoff_`
+  - [ ] Add `set_cutoff(double cutoff_time)` method
+  - [ ] Add `clear_cutoff()` or `disable_cutoff()` method for reuse
+  - [ ] Update constructor to initialize cutoff variables
+
+- [ ] Modify `generate_cascade_pq()` for cutoff support
+  - [ ] Add cutoff check in main while loop: `if (use_cutoff_ && time > cutoff_time_) break;`
+  - [ ] Add cutoff check before pushing to queue: `if (!use_cutoff_ || delay <= cutoff_time_)`
+  - [ ] Ensure nodes AT cutoff time are included (use <= not <)
+  - [ ] Test: early termination saves iterations
+
+- [ ] Modify `generate_cascade()` for cutoff support
+  - [ ] Add cutoff check in main while loop
+  - [ ] Track time properly in non-delayed mode
+  - [ ] Optimize: could track generation depth instead of time
+  - [ ] Ensure consistency with delayed mode
+
+- [ ] Update `generate_cascades()` batch method
+  - [ ] Pass cutoff to individual cascade generation
+  - [ ] Ensure thread safety (cutoff should be read-only during generation)
+  - [ ] Test: parallel execution with cutoff
+
+- [ ] Update pybind11 bindings
+  - [ ] Expose `set_cutoff()` method
+  - [ ] Add overloads for `generate_cascade(seed)` and `generate_cascade(seed, cutoff)`
+  - [ ] Add overloads for `generate_cascades(seed, n)` and `generate_cascades(seed, n, cutoff)`
+  - [ ] Document parameters in bindings
+
+**Python Implementation**
+- [ ] Update `pyCascadeGenerator` class
+  - [ ] Add `cutoff: Optional[float] = None` parameter to `generate()` method
+  - [ ] If cutoff is not None, call `self.cascade_model_.set_cutoff(cutoff)`
+  - [ ] If cutoff is None, ensure no cutoff is applied (call `clear_cutoff()` or use flag)
+  - [ ] Maintain backward compatibility: existing code works without changes
+
+- [ ] Update type stubs
+  - [ ] Add cutoff parameter to method signatures in `.pyi` file
+  - [ ] Document expected behavior
+
+- [ ] Update docstrings
+  - [ ] Explain cutoff parameter purpose
+  - [ ] Provide examples with and without cutoff
+  - [ ] Explain time semantics (discrete vs continuous)
+  - [ ] Note performance benefits
+
+#### Phase 3: Optimization
+
+**Performance Optimizations**
+- [ ] Minimize branch prediction penalties
+  - [ ] Use `if constexpr` or template specialization if cutoff is known at compile time
+  - [ ] Consider separate methods: `generate_cascade()` vs `generate_cascade_with_cutoff()`
+  - [ ] Profile: cost of `if (use_cutoff_ && time > cutoff)` in tight loop
+
+- [ ] Memory optimizations
+  - [ ] Pre-allocate cascade vector with estimated size based on cutoff
+  - [ ] For small cutoffs, use smaller initial capacity
+  - [ ] Measure memory savings from early termination
+
+- [ ] Algorithm optimizations
+  - [ ] For non-delayed mode: convert cutoff to generation count at start
+  - [ ] Skip cutoff check in inner loop if generation < max_generation
+  - [ ] Only check cutoff when moving to next generation
+
+- [ ] Batch processing optimizations
+  - [ ] If all cascades use same cutoff, set once before batch
+  - [ ] Avoid redundant set_cutoff() calls
+  - [ ] Test cache locality with cutoff enabled
+
+**Code Quality**
+- [ ] Add const correctness
+  - [ ] Make cutoff parameter const in methods
+  - [ ] Mark cutoff-related members as const where appropriate
+
+- [ ] Add inline hints for hot path
+  - [ ] Consider `inline` or `__attribute__((always_inline))` for cutoff checks
+  - [ ] Profile-guided optimization
+
+#### Phase 4: Testing
+
+**Unit Tests**
+- [ ] Test cutoff functionality
+  - [ ] Test cutoff = 0.0 (only seeds)
+  - [ ] Test cutoff = 1.0 (one generation)
+  - [ ] Test cutoff = 2.5 (between generations)
+  - [ ] Test cutoff = infinity (no cutoff)
+  - [ ] Test cutoff = None (backward compatibility)
+  - [ ] Test negative cutoff (should disable or error)
+
+- [ ] Test correctness
+  - [ ] Verify no nodes with time > cutoff
+  - [ ] Verify all nodes with time <= cutoff are included
+  - [ ] Verify statistical properties unchanged (for given time window)
+  - [ ] Compare truncated cascade vs full cascade[:cutoff]
+
+- [ ] Test edge cases
+  - [ ] Empty graph
+  - [ ] Single node graph
+  - [ ] Disconnected graph
+  - [ ] Graph with no propagation (p=0)
+  - [ ] Graph with full propagation (p=1)
+
+- [ ] Test performance
+  - [ ] Measure speedup with various cutoff values
+  - [ ] Verify early termination actually occurs
+  - [ ] Check memory usage reduction
+  - [ ] Profile overhead of cutoff=None
+
+**Integration Tests**
+- [ ] Test backward compatibility
+  - [ ] Run existing examples without modification
+  - [ ] Verify identical results when cutoff=None
+  - [ ] Test both delayed and non-delayed modes
+
+- [ ] Test Python wrapper
+  - [ ] Test cutoff parameter in generate()
+  - [ ] Test with NetworkX graphs
+  - [ ] Test batch generation with cutoff
+  - [ ] Test type checking passes
+
+**Benchmark Suite**
+- [ ] Create benchmark comparing:
+  - [ ] Full cascade generation
+  - [ ] Cascade with cutoff (various values)
+  - [ ] Post-filtering vs early termination
+  - [ ] Delayed vs non-delayed with cutoff
+
+- [ ] Measure across different scenarios:
+  - [ ] Small graphs (n=100)
+  - [ ] Medium graphs (n=10,000)
+  - [ ] Large graphs (n=1,000,000)
+  - [ ] Various edge densities
+  - [ ] Various cutoff values (early, mid, late)
+
+#### Phase 5: Documentation
+
+**Code Documentation**
+- [ ] Add detailed comments explaining cutoff logic
+- [ ] Document time semantics for delayed vs non-delayed
+- [ ] Add examples in code comments
+- [ ] Update docstrings with cutoff parameter
+
+**User Documentation**
+- [ ] Update README.md with cutoff examples
+- [ ] Add "Time-based Analysis" section
+- [ ] Explain performance benefits
+- [ ] Show use cases (early cascade analysis, time windows)
+- [ ] Add visualization of cutoff effect
+
+**API Documentation**
+- [ ] Document cutoff parameter in all relevant methods
+- [ ] Explain time semantics clearly
+- [ ] Provide migration guide (if API changes)
+- [ ] Add performance characteristics
+
+#### Phase 6: Validation
+
+**Correctness Validation**
+- [ ] Mathematical verification:
+  - [ ] Prove cutoff doesn't affect cascade distribution for t <= cutoff
+  - [ ] Verify independence of future events
+  - [ ] Check consistency with IC model definition
+
+- [ ] Statistical testing:
+  - [ ] Compare distributions: full cascade truncated vs cutoff cascade
+  - [ ] Run Kolmogorov-Smirnov test
+  - [ ] Verify expected cascade size at time t
+
+**Performance Validation**
+- [ ] Profile actual speedup
+  - [ ] Measure wall-clock time reduction
+  - [ ] Measure CPU cycles saved
+  - [ ] Verify memory reduction
+
+- [ ] Validate optimization assumptions
+  - [ ] Check branch prediction efficiency
+  - [ ] Verify no cache performance degradation
+  - [ ] Confirm thread safety maintained
+
+### Implementation Notes
+
+**Key Design Decisions**
+1. **Cutoff semantics**: Include events AT cutoff time (use `<=` not `<`)
+2. **Backward compatibility**: cutoff=None means no cutoff, existing code unchanged
+3. **Performance**: Early termination in loop, not post-filtering
+4. **Thread safety**: cutoff is set before generation, read-only during
+5. **API**: Optional parameter in Python, setter method in C++
+
+**Potential Pitfalls**
+- Off-by-one errors at cutoff boundary
+- Floating point comparison issues (use epsilon for equality)
+- Race conditions in parallel code
+- Inconsistent time semantics between delayed/non-delayed
+- Performance regression when cutoff=None
+
+**Success Criteria**
+- [ ] All existing tests pass
+- [ ] All existing examples work unchanged
+- [ ] Cutoff provides measurable speedup (>20% for cutoff at 50% of cascade time)
+- [ ] No memory leaks or crashes
+- [ ] Thread-safe parallel execution
+- [ ] Clear, comprehensive documentation
+
+---
+
 ## CRITICAL (Fix Immediately)
 
 ### Random Number Generation - Thread Safety
