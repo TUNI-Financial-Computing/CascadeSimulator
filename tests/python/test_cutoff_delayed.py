@@ -34,6 +34,7 @@ class TestCutoffDelayedMode:
         
         # Generate cascade
         cascade = gen.generate_cascade([0])
+        print(f"\n  [Delayed] Cutoff=0.0: {len(cascade)} events, times: {[obs[1] for obs in cascade]}")
         
         # Should only have seed node(s) at time 0.0
         # All nodes should be at time 0.0
@@ -60,6 +61,7 @@ class TestCutoffDelayedMode:
         
         # Generate cascade
         cascade = gen.generate_cascade([0])
+        print(f"\n  [Delayed] Cutoff=5.0: {len(cascade)} events")
         
         # All nodes should have time <= cutoff_time
         # Filter out potential NaN values (pre-existing bug in random number generation)
@@ -89,6 +91,7 @@ class TestCutoffDelayedMode:
         # Generate with cutoff
         gen.set_cutoff(3.0)
         cutoff_cascade = gen.generate_cascade([0])
+        print(f"\n  [Delayed] Full cascade: {len(full_cascade)} events, with cutoff=3.0: {len(cutoff_cascade)} events")
         
         # Cutoff cascade should be smaller or equal
         assert len(cutoff_cascade) <= len(full_cascade)
@@ -164,6 +167,7 @@ class TestCutoffDelayedMode:
         
         # Generate again
         full_cascade = gen.generate_cascade([0])
+        print(f"\n  [Delayed] With cutoff=3.0: {len(cutoff_cascade)} events, after clear: {len(full_cascade)} events")
         
         # Full cascade should be larger or equal
         assert len(full_cascade) >= len(cutoff_cascade)

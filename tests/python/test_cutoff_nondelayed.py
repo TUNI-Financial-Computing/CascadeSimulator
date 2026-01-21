@@ -30,6 +30,7 @@ class TestCutoffNonDelayedMode:
         
         # Generate cascade
         cascade = gen.generate_cascade([0])
+        print(f"\n  [NonDelayed] Cutoff=0.0: {len(cascade)} events, times: {[obs[1] for obs in cascade]}")
         
         # Should only have seed node(s) at time 0.0
         for obs in cascade:
@@ -51,6 +52,7 @@ class TestCutoffNonDelayedMode:
         
         # Generate cascade
         cascade = gen.generate_cascade([0])
+        print(f"\n  [NonDelayed] Cutoff=5.0: {len(cascade)} events")
         
         # All nodes should have time <= cutoff_time
         for obs in cascade:
@@ -73,6 +75,7 @@ class TestCutoffNonDelayedMode:
         # Generate with cutoff
         gen.set_cutoff(3.0)
         cutoff_cascade = gen.generate_cascade([0])
+        print(f"\n  [NonDelayed] Full cascade: {len(full_cascade)} events, with cutoff=3.0: {len(cutoff_cascade)} events")
         
         # Cutoff cascade should be smaller or equal
         assert len(cutoff_cascade) <= len(full_cascade)
@@ -134,6 +137,7 @@ class TestCutoffNonDelayedMode:
         
         # Generate again
         full_cascade = gen.generate_cascade([0])
+        print(f"\n  [NonDelayed] With cutoff=3.0: {len(cutoff_cascade)} events, after clear: {len(full_cascade)} events")
         
         # Full cascade should be larger or equal
         assert len(full_cascade) >= len(cutoff_cascade)
@@ -161,6 +165,7 @@ class TestCutoffNonDelayedMode:
         # Node 3 at time 3.0 (should be excluded as > 2.5)
         # So we expect at most 3 nodes (0, 1, 2)
         times = [obs[1] for obs in cascade]
+        print(f"\n  [NonDelayed] Cutoff=2.5 (deterministic): {len(cascade)} events, times: {sorted(times)}")
         assert all(t <= 2.5 for t in times), f"Times {times} exceed cutoff 2.5"
         
         # Verify we have nodes at expected times
@@ -186,6 +191,7 @@ class TestCutoffNonDelayedMode:
         
         # Should include nodes at time 0.0, 1.0, and 2.0
         times = [obs[1] for obs in cascade]
+        print(f"\n  [NonDelayed] Cutoff=2.0 (exact boundary): {len(cascade)} events, times: {sorted(times)}")
         assert 2.0 in times, "Nodes at cutoff boundary should be included"
         assert all(t <= 2.0 for t in times), "No nodes beyond cutoff"
     

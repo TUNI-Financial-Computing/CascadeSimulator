@@ -68,6 +68,7 @@ class TestCutoffInfrastructure:
         
         # Generate cascade
         cascade = gen.generate_cascade([0])
+        print(f"\n  [Infrastructure] Cascade with cutoff=5.0: {len(cascade)} events")
         
         # Should still work (may or may not respect cutoff yet)
         assert len(cascade) > 0
@@ -89,6 +90,7 @@ class TestCutoffInfrastructure:
         
         # Generate cascade
         cascade = gen.generate_cascade([0])
+        print(f"\n  [Infrastructure] Cascade after clear_cutoff: {len(cascade)} events")
         
         # Should still work
         assert len(cascade) > 0
