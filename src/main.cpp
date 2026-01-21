@@ -144,8 +144,11 @@ public:
         }
 
         // Include the seed in the cascade with 0 as symptom and time (node, time, symptom)
+        // Only include seeds if they're within cutoff
         for (int node : seed) {
-            cascade.push_back(std::make_tuple(node, 0.0, 0.0));
+            if (!use_cutoff_ || 0.0 <= cutoff_time_) {
+                cascade.push_back(std::make_tuple(node, 0.0, 0.0));
+            }
         }
         while (!active.empty())
         {
@@ -153,6 +156,12 @@ public:
             active.pop();
             int node = qnode.node;
             double time = qnode.arrival_time;
+            
+            // CUTOFF: Early termination if time exceeds cutoff
+            if (use_cutoff_ && time > cutoff_time_) {
+                break;  // All remaining nodes in queue are beyond cutoff
+            }
+            
             if (!is_active[node]) {
                 continue;
             }
@@ -168,6 +177,12 @@ public:
                 double p = edge_probabilities_? edge_probs_[node][j] : probability_;
                 double q = symptomatic_? node_symp_probs_[neighbor] : symptom_probability_;
                 double delay = time + (delayed_? get_delay(node, neighbor) : 1.0);
+                
+                // CUTOFF: Skip neighbors that would arrive after cutoff
+                if (use_cutoff_ && delay > cutoff_time_) {
+                    continue;  // Don't add this neighbor to queue or cascade
+                }
+                
                 if (std::rand() / (RAND_MAX + 1.0) > p)
                 {
                     continue;

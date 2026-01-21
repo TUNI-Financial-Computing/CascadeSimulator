@@ -79,13 +79,17 @@ Implement time-based cutoff parameter for cascade generation with full backward 
   - [x] Verify backward compatibility maintained
   - [x] All 28 tests passing (19 original + 9 new)
 
-**Status**: Infrastructure complete, methods exposed, tests passing. Ready for Step 2.
+**Status**: Infrastructure complete, methods exposed, tests passing. ✅ Step 1 COMPLETE
 
-- [ ] Modify `generate_cascade_pq()` for cutoff support (Step 2)
-  - [ ] Add cutoff check in main while loop: `if (use_cutoff_ && time > cutoff_time_) break;`
-  - [ ] Add cutoff check before pushing to queue: `if (!use_cutoff_ || delay <= cutoff_time_)`
-  - [ ] Ensure nodes AT cutoff time are included (use <= not <)
-  - [ ] Test: early termination saves iterations
+- [x] Modify `generate_cascade_pq()` for cutoff support (Step 2)
+  - [x] Add cutoff check for seeds: `if (!use_cutoff_ || 0.0 <= cutoff_time_)`
+  - [x] Add cutoff check in main while loop: `if (use_cutoff_ && time > cutoff_time_) break;`
+  - [x] Add cutoff check for neighbors: `if (use_cutoff_ && delay > cutoff_time_) continue;`
+  - [x] Ensure nodes AT cutoff time are included (use <= not <)
+  - [x] Create 9 tests for delayed mode cutoff
+  - [x] All 37 tests passing (19 original + 9 infrastructure + 9 delayed)
+
+**Status**: Delayed mode cutoff complete, early termination working, tests passing. ✅ Step 2 COMPLETE
 
 - [ ] Modify `generate_cascade()` for cutoff support (Step 3)
   - [ ] Add cutoff check in main while loop
