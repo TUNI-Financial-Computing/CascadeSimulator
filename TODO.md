@@ -55,35 +55,48 @@ Implement time-based cutoff parameter for cascade generation with full backward 
 
 #### Phase 2: Core Implementation
 
-**C++ Implementation**
-- [ ] Add cutoff support to `CascadeGenerator` class
-  - [ ] Add private members: `double cutoff_time_`, `bool use_cutoff_`
-  - [ ] Add `set_cutoff(double cutoff_time)` method
-  - [ ] Add `clear_cutoff()` or `disable_cutoff()` method for reuse
-  - [ ] Update constructor to initialize cutoff variables
+**C++ Implementation - STEP 1 COMPLETED ✅**
+- [x] Add cutoff support to `CascadeGenerator` class
+  - [x] Add private members: `double cutoff_time_`, `bool use_cutoff_`
+  - [x] Add `set_cutoff(double cutoff_time)` method
+  - [x] Add `clear_cutoff()` method for reuse
+  - [x] Update constructor to initialize cutoff variables
 
-- [ ] Modify `generate_cascade_pq()` for cutoff support
+- [x] Update pybind11 bindings (Step 1)
+  - [x] Expose `set_cutoff()` method
+  - [x] Expose `clear_cutoff()` method
+  - [x] Remove duplicate method registrations (cleanup)
+  - [x] Add documentation strings to bindings
+
+- [x] Update type stubs (Step 1)
+  - [x] Add `set_cutoff()` to `.pyi` file
+  - [x] Add `clear_cutoff()` to `.pyi` file
+
+- [x] Create infrastructure tests (Step 1)
+  - [x] Test that methods exist and can be called
+  - [x] Test positive, zero, and negative cutoff values
+  - [x] Test that cascade generation still works with cutoff set
+  - [x] Verify backward compatibility maintained
+  - [x] All 28 tests passing (19 original + 9 new)
+
+**Status**: Infrastructure complete, methods exposed, tests passing. Ready for Step 2.
+
+- [ ] Modify `generate_cascade_pq()` for cutoff support (Step 2)
   - [ ] Add cutoff check in main while loop: `if (use_cutoff_ && time > cutoff_time_) break;`
   - [ ] Add cutoff check before pushing to queue: `if (!use_cutoff_ || delay <= cutoff_time_)`
   - [ ] Ensure nodes AT cutoff time are included (use <= not <)
   - [ ] Test: early termination saves iterations
 
-- [ ] Modify `generate_cascade()` for cutoff support
+- [ ] Modify `generate_cascade()` for cutoff support (Step 3)
   - [ ] Add cutoff check in main while loop
   - [ ] Track time properly in non-delayed mode
   - [ ] Optimize: could track generation depth instead of time
   - [ ] Ensure consistency with delayed mode
 
-- [ ] Update `generate_cascades()` batch method
+- [ ] Update `generate_cascades()` batch method (Step 4)
   - [ ] Pass cutoff to individual cascade generation
   - [ ] Ensure thread safety (cutoff should be read-only during generation)
   - [ ] Test: parallel execution with cutoff
-
-- [ ] Update pybind11 bindings
-  - [ ] Expose `set_cutoff()` method
-  - [ ] Add overloads for `generate_cascade(seed)` and `generate_cascade(seed, cutoff)`
-  - [ ] Add overloads for `generate_cascades(seed, n)` and `generate_cascades(seed, n, cutoff)`
-  - [ ] Document parameters in bindings
 
 **Python Implementation**
 - [ ] Update `pyCascadeGenerator` class

@@ -46,6 +46,10 @@ private:
     bool thresholded_;
     bool edge_probabilities_;
     int n_nodes_;
+    
+    // Cutoff support
+    double cutoff_time_;      // Cutoff time (-1.0 = no cutoff)
+    bool use_cutoff_;         // Flag for fast check
 
     double get_delay(int i, int j)
     {
@@ -64,7 +68,7 @@ private:
 public:
     // Constructor that takes a graph
     CascadeGenerator()
-        : graph_({}), probability_(0), symptom_probability_(0), edge_probs_({}), node_symp_probs_({}), node_thresholds_({}), edge_effects_({}), edge_delays_({}), delayed_(false), symptomatic_(false), thresholded_(false), edge_probabilities_(false), n_nodes_(0)
+        : graph_({}), probability_(0), symptom_probability_(0), edge_probs_({}), node_symp_probs_({}), node_thresholds_({}), edge_effects_({}), edge_delays_({}), delayed_(false), symptomatic_(false), thresholded_(false), edge_probabilities_(false), n_nodes_(0), cutoff_time_(-1.0), use_cutoff_(false)
     {
         // void
     }
@@ -106,6 +110,24 @@ public:
     {
         edge_delays_ = edge_delays;
         delayed_ = true;
+    }
+
+    // Set cutoff time for cascade generation
+    void set_cutoff(double cutoff_time)
+    {
+        if (cutoff_time >= 0.0) {
+            cutoff_time_ = cutoff_time;
+            use_cutoff_ = true;
+        } else {
+            clear_cutoff();
+        }
+    }
+
+    // Clear cutoff (disable time-based stopping)
+    void clear_cutoff()
+    {
+        cutoff_time_ = -1.0;
+        use_cutoff_ = false;
     }
 
     std::vector<std::tuple<int, double, double>> generate_cascade_pq(const std::vector<int>& seed)
@@ -244,10 +266,10 @@ PYBIND11_MODULE(cascade_generator_cpp, m) {
         .def("set_symptom_probability", &CascadeGenerator::set_symptom_probability)
         .def("set_symptom_probabilities", &CascadeGenerator::set_symptom_probabilities)
         .def("set_delays", &CascadeGenerator::set_delays)
+        .def("set_cutoff", &CascadeGenerator::set_cutoff, "Set time cutoff for cascade generation")
+        .def("clear_cutoff", &CascadeGenerator::clear_cutoff, "Clear time cutoff")
         .def("generate_cascade", &CascadeGenerator::generate_cascade)
-        .def("generate_cascades", &CascadeGenerator::generate_cascades)
-        .def("set_symptom_probability", &CascadeGenerator::set_symptom_probability)
-        .def("set_symptom_probabilities", &CascadeGenerator::set_symptom_probabilities);
+        .def("generate_cascades", &CascadeGenerator::generate_cascades);
 
     m.def("hello_from_bin", &hello_from_bin, R"pbdoc(
         A function that returns a Hello string.
