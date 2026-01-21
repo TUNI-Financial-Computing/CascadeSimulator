@@ -213,13 +213,17 @@ public:
         // Make a priority queue of active nodes and initialize with the seed
         std::list<std::pair<int,double>> active;
         std::vector<bool> infected(n_nodes_, false);
-        for (int node : seed) {
-            active.push_back(std::make_pair(node, 0.0));
-            infected[node] = true;
-        }
-        // Include the seed in the cascade with 0 as symptom and time (node, time, symptom)
-        for (int node : seed) {
-            cascade.push_back(std::make_tuple(node, 0.0, 0.0));
+        
+        // Only include seeds if time 0 is within cutoff
+        if (!use_cutoff_ || 0.0 <= cutoff_time_) {
+            for (int node : seed) {
+                active.push_back(std::make_pair(node, 0.0));
+                infected[node] = true;
+            }
+            // Include the seed in the cascade with 0 as symptom and time (node, time, symptom)
+            for (int node : seed) {
+                cascade.push_back(std::make_tuple(node, 0.0, 0.0));
+            }
         }
         while (!active.empty())
         {
@@ -227,6 +231,12 @@ public:
             active.pop_front();
             int node = current.first;
             double time = current.second;
+            
+            // Early termination: if current time exceeds cutoff, stop processing
+            if (use_cutoff_ && time > cutoff_time_) {
+                break;
+            }
+            
             // For each neighbor of the node
             for (int j = 0; j < graph_[node].size(); ++j)
             {
@@ -235,6 +245,15 @@ public:
                 {
                     continue;
                 }
+                
+                // Calculate next time (fixed 1.0 delay in non-delayed mode)
+                double next_time = time + 1.0;
+                
+                // Skip neighbors beyond cutoff
+                if (use_cutoff_ && next_time > cutoff_time_) {
+                    continue;
+                }
+                
                 double p = edge_probabilities_? edge_probs_[node][j] : probability_;
                 double q = symptomatic_? node_symp_probs_[neighbor] : symptom_probability_;
                 if (std::rand() / (RAND_MAX + 1.0) > p)
@@ -243,13 +262,13 @@ public:
                 }
                 if (std::rand() / (RAND_MAX + 1.0) < q)
                 {
-                    cascade.push_back(std::make_tuple(neighbor, time + 1.0, 1.0));
+                    cascade.push_back(std::make_tuple(neighbor, next_time, 1.0));
                 }
                 else
                 {
-                    cascade.push_back(std::make_tuple(neighbor, time + 1.0, 0.0));
+                    cascade.push_back(std::make_tuple(neighbor, next_time, 0.0));
                 }
-                active.push_back(std::make_pair(neighbor, time + 1.0));
+                active.push_back(std::make_pair(neighbor, next_time));
                 infected[neighbor] = true;
             }
         }
