@@ -71,8 +71,8 @@ class TestPyCascadeGeneratorInit:
         for edge in graph.edges():
             graph[edge[0]][edge[1]]['weight'] = 0.5
         
-        # Should fail assertion in __init__
-        with pytest.raises(AssertionError):
+        # Should raise ValueError for invalid node IDs
+        with pytest.raises(ValueError, match="Graph nodes must be integers from 0 to"):
             gen = pyCascadeGenerator(graph=graph, cascade_model="IC")
 
 
@@ -168,12 +168,12 @@ class TestPyCascadeGeneratorGenerate:
         assert cascade[0].node_id == 0
     
     def test_generate_empty_seed(self, simple_graph):
-        """Test that empty seed produces empty cascade."""
+        """Test that empty seed raises ValueError."""
         gen = pyCascadeGenerator(simple_graph, cascade_model="IC")
-        cascade = gen.generate([], num_cascades=1)
         
-        # Empty seed should produce empty cascade
-        assert len(cascade) == 0
+        # Empty seed should raise ValueError
+        with pytest.raises(ValueError, match="seeds cannot be empty"):
+            cascade = gen.generate([], num_cascades=1)
 
 
 class TestNetworkXIntegration:
@@ -214,7 +214,7 @@ class TestNetworkXIntegration:
         assert len(cascade) == 20
     
     def test_empty_graph(self):
-        """Test with empty graph (single node)."""
+        """Test with empty graph (single node, no edges)."""
         graph = nx.Graph()
         graph.add_node(0)
         
@@ -223,6 +223,57 @@ class TestNetworkXIntegration:
         
         # Only seed
         assert len(cascade) == 1
+    
+    def test_truly_empty_graph(self):
+        """Test with graph containing zero nodes."""
+        graph = nx.Graph()
+        
+        # Should work with empty graph but can't generate cascades
+        gen = pyCascadeGenerator(graph, cascade_model="IC")
+        
+        # Cannot generate from non-existent seed
+        with pytest.raises(ValueError, match="Invalid seed node"):
+            gen.generate([0], num_cascades=1)
+    
+    def test_disconnected_graph(self):
+        """Test with disconnected graph (multiple components)."""
+        graph = nx.DiGraph()
+        # Component 1: 0 -> 1 -> 2
+        graph.add_edge(0, 1, weight=1.0)
+        graph.add_edge(1, 2, weight=1.0)
+        # Component 2: 3 -> 4 (isolated)
+        graph.add_edge(3, 4, weight=1.0)
+        # Isolated node
+        graph.add_node(5)
+        
+        gen = pyCascadeGenerator(graph, cascade_model="IC")
+        
+        # Seed in component 1 should only reach component 1
+        cascade = gen.generate([0], num_cascades=1)
+        infected_nodes = {obs.node_id for obs in cascade}
+        
+        # Should reach 0, 1, 2 (component 1)
+        assert 0 in infected_nodes
+        assert 1 in infected_nodes
+        assert 2 in infected_nodes
+        
+        # Should NOT reach component 2 or isolated node
+        assert 3 not in infected_nodes
+        assert 4 not in infected_nodes
+        assert 5 not in infected_nodes
+    
+    def test_single_node_graph(self):
+        """Test with graph containing exactly one node with self-loop."""
+        graph = nx.DiGraph()
+        graph.add_node(0)
+        graph.add_edge(0, 0, weight=1.0)  # Self-loop
+        
+        gen = pyCascadeGenerator(graph, cascade_model="IC")
+        cascade = gen.generate([0], num_cascades=1)
+        
+        # Should only activate once despite self-loop
+        assert len(cascade) == 1
+        assert cascade[0].node_id == 0
 
 
 class TestBackwardCompatibility:

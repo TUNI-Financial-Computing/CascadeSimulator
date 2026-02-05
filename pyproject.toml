@@ -1,15 +1,35 @@
 [project]
 name = "cascadesimulator"
 version = "0.1.0"
-description = "Add your description here"
+description = "High-performance Python package for simulating cascades in networks using the Independent Cascade (IC) model with C++ backend"
 readme = "README.md"
 authors = [
     { name = "kbaltakys", email = "kbaltakys@gmail.com" }
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.8"
 dependencies = [
-    "networkx>=3.4.2",
+    "networkx>=2.5",
 ]
+keywords = ["network", "cascade", "simulation", "independent-cascade", "graph", "diffusion", "influence"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: C++",
+]
+
+[project.urls]
+Homepage = "https://github.com/TUNI-Financial-Computing/CascadeSimulator"
+Repository = "https://github.com/TUNI-Financial-Computing/CascadeSimulator"
+Issues = "https://github.com/TUNI-Financial-Computing/CascadeSimulator/issues"
 
 [project.scripts]
 cascadesimulator = "cascadesimulator:main"
@@ -25,4 +45,14 @@ build-backend = "scikit_build_core.build"
 [dependency-groups]
 dev = [
     "ipykernel>=6.29.5",
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+]
+test = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-benchmark>=4.0",
 ]
