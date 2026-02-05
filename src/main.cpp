@@ -46,6 +46,10 @@ private:
     bool thresholded_;
     bool edge_probabilities_;
     int n_nodes_;
+    
+    // Cutoff support
+    double cutoff_time_;      // Cutoff time (-1.0 = no cutoff)
+    bool use_cutoff_;         // Flag for fast check
 
     double get_delay(int i, int j)
     {
@@ -64,7 +68,7 @@ private:
 public:
     // Constructor that takes a graph
     CascadeGenerator()
-        : graph_({}), probability_(0), symptom_probability_(0), edge_probs_({}), node_symp_probs_({}), node_thresholds_({}), edge_effects_({}), edge_delays_({}), delayed_(false), symptomatic_(false), thresholded_(false), edge_probabilities_(false), n_nodes_(0)
+        : graph_({}), probability_(0), symptom_probability_(0), edge_probs_({}), node_symp_probs_({}), node_thresholds_({}), edge_effects_({}), edge_delays_({}), delayed_(false), symptomatic_(false), thresholded_(false), edge_probabilities_(false), n_nodes_(0), cutoff_time_(-1.0), use_cutoff_(false)
     {
         // void
     }
@@ -108,6 +112,24 @@ public:
         delayed_ = true;
     }
 
+    // Set cutoff time for cascade generation
+    void set_cutoff(double cutoff_time)
+    {
+        if (cutoff_time >= 0.0) {
+            cutoff_time_ = cutoff_time;
+            use_cutoff_ = true;
+        } else {
+            clear_cutoff();
+        }
+    }
+
+    // Clear cutoff (disable time-based stopping)
+    void clear_cutoff()
+    {
+        cutoff_time_ = -1.0;
+        use_cutoff_ = false;
+    }
+
     std::vector<std::tuple<int, double, double>> generate_cascade_pq(const std::vector<int>& seed)
     {
         std::vector<std::tuple<int, double, double>> cascade = {};
@@ -122,8 +144,11 @@ public:
         }
 
         // Include the seed in the cascade with 0 as symptom and time (node, time, symptom)
+        // Only include seeds if they're within cutoff
         for (int node : seed) {
-            cascade.push_back(std::make_tuple(node, 0.0, 0.0));
+            if (!use_cutoff_ || 0.0 <= cutoff_time_) {
+                cascade.push_back(std::make_tuple(node, 0.0, 0.0));
+            }
         }
         while (!active.empty())
         {
@@ -131,6 +156,12 @@ public:
             active.pop();
             int node = qnode.node;
             double time = qnode.arrival_time;
+            
+            // CUTOFF: Early termination if time exceeds cutoff
+            if (use_cutoff_ && time > cutoff_time_) {
+                break;  // All remaining nodes in queue are beyond cutoff
+            }
+            
             if (!is_active[node]) {
                 continue;
             }
@@ -146,6 +177,12 @@ public:
                 double p = edge_probabilities_? edge_probs_[node][j] : probability_;
                 double q = symptomatic_? node_symp_probs_[neighbor] : symptom_probability_;
                 double delay = time + (delayed_? get_delay(node, neighbor) : 1.0);
+                
+                // CUTOFF: Skip neighbors that would arrive after cutoff
+                if (use_cutoff_ && delay > cutoff_time_) {
+                    continue;  // Don't add this neighbor to queue or cascade
+                }
+                
                 if (std::rand() / (RAND_MAX + 1.0) > p)
                 {
                     continue;
@@ -176,13 +213,17 @@ public:
         // Make a priority queue of active nodes and initialize with the seed
         std::list<std::pair<int,double>> active;
         std::vector<bool> infected(n_nodes_, false);
-        for (int node : seed) {
-            active.push_back(std::make_pair(node, 0.0));
-            infected[node] = true;
-        }
-        // Include the seed in the cascade with 0 as symptom and time (node, time, symptom)
-        for (int node : seed) {
-            cascade.push_back(std::make_tuple(node, 0.0, 0.0));
+        
+        // Only include seeds if time 0 is within cutoff
+        if (!use_cutoff_ || 0.0 <= cutoff_time_) {
+            for (int node : seed) {
+                active.push_back(std::make_pair(node, 0.0));
+                infected[node] = true;
+            }
+            // Include the seed in the cascade with 0 as symptom and time (node, time, symptom)
+            for (int node : seed) {
+                cascade.push_back(std::make_tuple(node, 0.0, 0.0));
+            }
         }
         while (!active.empty())
         {
@@ -190,6 +231,12 @@ public:
             active.pop_front();
             int node = current.first;
             double time = current.second;
+            
+            // Early termination: if current time exceeds cutoff, stop processing
+            if (use_cutoff_ && time > cutoff_time_) {
+                break;
+            }
+            
             // For each neighbor of the node
             for (int j = 0; j < graph_[node].size(); ++j)
             {
@@ -198,6 +245,15 @@ public:
                 {
                     continue;
                 }
+                
+                // Calculate next time (fixed 1.0 delay in non-delayed mode)
+                double next_time = time + 1.0;
+                
+                // Skip neighbors beyond cutoff
+                if (use_cutoff_ && next_time > cutoff_time_) {
+                    continue;
+                }
+                
                 double p = edge_probabilities_? edge_probs_[node][j] : probability_;
                 double q = symptomatic_? node_symp_probs_[neighbor] : symptom_probability_;
                 if (std::rand() / (RAND_MAX + 1.0) > p)
@@ -206,13 +262,13 @@ public:
                 }
                 if (std::rand() / (RAND_MAX + 1.0) < q)
                 {
-                    cascade.push_back(std::make_tuple(neighbor, time + 1.0, 1.0));
+                    cascade.push_back(std::make_tuple(neighbor, next_time, 1.0));
                 }
                 else
                 {
-                    cascade.push_back(std::make_tuple(neighbor, time + 1.0, 0.0));
+                    cascade.push_back(std::make_tuple(neighbor, next_time, 0.0));
                 }
-                active.push_back(std::make_pair(neighbor, time + 1.0));
+                active.push_back(std::make_pair(neighbor, next_time));
                 infected[neighbor] = true;
             }
         }
@@ -244,10 +300,10 @@ PYBIND11_MODULE(cascade_generator_cpp, m) {
         .def("set_symptom_probability", &CascadeGenerator::set_symptom_probability)
         .def("set_symptom_probabilities", &CascadeGenerator::set_symptom_probabilities)
         .def("set_delays", &CascadeGenerator::set_delays)
+        .def("set_cutoff", &CascadeGenerator::set_cutoff, "Set time cutoff for cascade generation")
+        .def("clear_cutoff", &CascadeGenerator::clear_cutoff, "Clear time cutoff")
         .def("generate_cascade", &CascadeGenerator::generate_cascade)
-        .def("generate_cascades", &CascadeGenerator::generate_cascades)
-        .def("set_symptom_probability", &CascadeGenerator::set_symptom_probability)
-        .def("set_symptom_probabilities", &CascadeGenerator::set_symptom_probabilities);
+        .def("generate_cascades", &CascadeGenerator::generate_cascades);
 
     m.def("hello_from_bin", &hello_from_bin, R"pbdoc(
         A function that returns a Hello string.

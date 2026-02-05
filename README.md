@@ -23,6 +23,12 @@ To install CascadeSimulator directly from the GitHub repository, you can use the
 pip install git+https://github.com/TUNI-Financial-Computing/CascadeSimulator.git
 ```
 
+To install from a specific branch (e.g., `dev` branch):
+
+```bash
+pip install git+https://github.com/TUNI-Financial-Computing/CascadeSimulator.git@dev
+```
+
 ### Using Conda (recommended)
 
 1. Create a new Conda environment (optional but recommended):
