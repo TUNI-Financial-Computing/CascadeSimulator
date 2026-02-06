@@ -3,9 +3,11 @@
 #include <vector>
 #include <tuple>
 #include <queue>
+#include <deque>
 #include <stdexcept>
 #include <string>
 #include <random>
+#include <algorithm>
 
 // Constants
 namespace {
@@ -69,7 +71,7 @@ private:
     std::mt19937 rng_;        // Mersenne Twister RNG
     std::uniform_real_distribution<double> uniform_dist_;
 
-    double get_delay(int i, int j)
+    inline double get_delay(int i, int j)
     {
         // The delay is the time it takes for infection to spread from node i to node j;
         // This is a random variable, whose expectation is given by the edge delay
@@ -212,32 +214,94 @@ public:
         use_cutoff_ = false;
     }
 
-    std::vector<std::tuple<int, double, double>> generate_cascade_pq(const std::vector<int>& seed)
+    // Fast path: generate cascade without cutoff checks (no branching overhead)
+    std::vector<std::tuple<int, double, double>> generate_cascade_pq_no_cutoff(const std::vector<int>& seed)
     {
-        // Validate inputs
-        validate_seeds(seed);
-        validate_edge_probabilities();
-        validate_symptom_probabilities();
-        validate_edge_delays();
+        // Pre-allocate cascade vector based on estimation
+        const int estimated_size = std::min(n_nodes_, static_cast<int>(seed.size() * 10));
+        std::vector<std::tuple<int, double, double>> cascade;
+        cascade.reserve(estimated_size);
         
-        std::vector<std::tuple<int, double, double>> cascade = {};
-        // Make a priority queue of active nodes and initialize with the seed
-        std::priority_queue<QNode, std::vector<QNode>, CompareByTime> active;
+        // Use std::deque for better cache locality in priority queue
+        std::priority_queue<QNode, std::deque<QNode>, CompareByTime> active;
         std::vector<bool> infected(n_nodes_, false);
         std::vector<bool> is_active(n_nodes_, false);
+        
+        for (int node : seed) {
+            active.push(QNode(node, INITIAL_TIME));
+            infected[node] = true;
+            is_active[node] = true;
+            cascade.push_back(std::make_tuple(node, INITIAL_TIME, INITIAL_SYMPTOM));
+        }
+        
+        while (!active.empty())
+        {
+            QNode qnode = active.top();
+            active.pop();
+            int node = qnode.node;
+            double time = qnode.arrival_time;
+            
+            if (!is_active[node]) {
+                continue;
+            }
+            is_active[node] = false;
+            
+            // For each neighbor of the node
+            for (int j = 0; j < graph_[node].size(); ++j)
+            {
+                int neighbor = graph_[node][j];
+                if (infected[neighbor]) {
+                    continue;
+                }
+                
+                double p = edge_probabilities_? edge_probs_[node][j] : probability_;
+                if (uniform_dist_(rng_) > p) {
+                    continue;
+                }
+                
+                double delay = time + get_delay(node, neighbor);
+                double q = symptomatic_? node_symp_probs_[neighbor] : symptom_probability_;
+                
+                if (uniform_dist_(rng_) < q) {
+                    cascade.push_back(std::make_tuple(neighbor, delay, HAS_SYMPTOM));
+                } else {
+                    cascade.push_back(std::make_tuple(neighbor, delay, NO_SYMPTOM));
+                }
+                
+                active.push(QNode(neighbor, delay));
+                infected[neighbor] = true;
+                is_active[neighbor] = true;
+            }
+        }
+        return cascade;
+    }
+
+    // Optimized path: generate cascade with cutoff checks
+    std::vector<std::tuple<int, double, double>> generate_cascade_pq_with_cutoff(const std::vector<int>& seed)
+    {
+        // Pre-allocate cascade vector based on estimation
+        const int estimated_size = std::min(n_nodes_, static_cast<int>(seed.size() * 10));
+        std::vector<std::tuple<int, double, double>> cascade;
+        cascade.reserve(estimated_size);
+        
+        // Use std::deque for better cache locality in priority queue
+        std::priority_queue<QNode, std::deque<QNode>, CompareByTime> active;
+        std::vector<bool> infected(n_nodes_, false);
+        std::vector<bool> is_active(n_nodes_, false);
+        
         for (int node : seed) {
             active.push(QNode(node, INITIAL_TIME));
             infected[node] = true;
             is_active[node] = true;
         }
 
-        // Include the seed in the cascade with 0 as symptom and time (node, time, symptom)
         // Only include seeds if they're within cutoff
         for (int node : seed) {
-            if (!use_cutoff_ || INITIAL_TIME <= cutoff_time_) {
+            if (INITIAL_TIME <= cutoff_time_) {
                 cascade.push_back(std::make_tuple(node, INITIAL_TIME, INITIAL_SYMPTOM));
             }
         }
+        
         while (!active.empty())
         {
             QNode qnode = active.top();
@@ -246,7 +310,7 @@ public:
             double time = qnode.arrival_time;
             
             // CUTOFF: Early termination if time exceeds cutoff
-            if (use_cutoff_ && time > cutoff_time_) {
+            if (time > cutoff_time_) {
                 break;  // All remaining nodes in queue are beyond cutoff
             }
             
@@ -254,38 +318,170 @@ public:
                 continue;
             }
             is_active[node] = false;
+            
             // For each neighbor of the node
             for (int j = 0; j < graph_[node].size(); ++j)
             {
                 int neighbor = graph_[node][j];
-                if (infected[neighbor])
-                {
+                if (infected[neighbor]) {
                     continue;
                 }
+                
                 double p = edge_probabilities_? edge_probs_[node][j] : probability_;
-                double q = symptomatic_? node_symp_probs_[neighbor] : symptom_probability_;
-                double delay = time + (delayed_? get_delay(node, neighbor) : DEFAULT_DELAY);
+                if (uniform_dist_(rng_) > p) {
+                    continue;
+                }
+                
+                double delay = time + get_delay(node, neighbor);
                 
                 // CUTOFF: Skip neighbors that would arrive after cutoff
-                if (use_cutoff_ && delay > cutoff_time_) {
-                    continue;  // Don't add this neighbor to queue or cascade
-                }
-                
-                if (uniform_dist_(rng_) > p)
-                {
+                if (delay > cutoff_time_) {
                     continue;
                 }
-                if (uniform_dist_(rng_) < q)
-                {
+                
+                double q = symptomatic_? node_symp_probs_[neighbor] : symptom_probability_;
+                
+                if (uniform_dist_(rng_) < q) {
                     cascade.push_back(std::make_tuple(neighbor, delay, HAS_SYMPTOM));
-                }
-                else
-                {
+                } else {
                     cascade.push_back(std::make_tuple(neighbor, delay, NO_SYMPTOM));
                 }
+                
                 active.push(QNode(neighbor, delay));
                 infected[neighbor] = true;
                 is_active[neighbor] = true;
+            }
+        }
+        return cascade;
+    }
+
+    std::vector<std::tuple<int, double, double>> generate_cascade_pq(const std::vector<int>& seed)
+    {
+        // Validate inputs
+        validate_seeds(seed);
+        validate_edge_probabilities();
+        validate_symptom_probabilities();
+        validate_edge_delays();
+        
+        // Route to optimized path based on cutoff usage
+        if (use_cutoff_) {
+            return generate_cascade_pq_with_cutoff(seed);
+        } else {
+            return generate_cascade_pq_no_cutoff(seed);
+        }
+    }
+
+    // Fast path: non-delayed cascade without cutoff (no branch overhead)
+    inline std::vector<std::tuple<int, double, double>> generate_cascade_fast(const std::vector<int>& seed)
+    {
+        const int estimated_size = std::min(n_nodes_, static_cast<int>(seed.size() * 10));
+        std::vector<std::tuple<int, double, double>> cascade;
+        cascade.reserve(estimated_size);
+        
+        std::deque<std::pair<int,double>> active;
+        std::vector<bool> infected(n_nodes_, false);
+        
+        for (int node : seed) {
+            active.push_back(std::make_pair(node, INITIAL_TIME));
+            infected[node] = true;
+            cascade.push_back(std::make_tuple(node, INITIAL_TIME, INITIAL_SYMPTOM));
+        }
+        
+        while (!active.empty())
+        {
+            std::pair<int,double> current = active.front();
+            active.pop_front();
+            int node = current.first;
+            double time = current.second;
+            
+            for (int j = 0; j < graph_[node].size(); ++j)
+            {
+                int neighbor = graph_[node][j];
+                if (infected[neighbor]) {
+                    continue;
+                }
+                
+                double p = edge_probabilities_? edge_probs_[node][j] : probability_;
+                if (uniform_dist_(rng_) > p) {
+                    continue;
+                }
+                
+                double next_time = time + DEFAULT_DELAY;
+                double q = symptomatic_? node_symp_probs_[neighbor] : symptom_probability_;
+                
+                if (uniform_dist_(rng_) < q) {
+                    cascade.push_back(std::make_tuple(neighbor, next_time, HAS_SYMPTOM));
+                } else {
+                    cascade.push_back(std::make_tuple(neighbor, next_time, NO_SYMPTOM));
+                }
+                
+                active.push_back(std::make_pair(neighbor, next_time));
+                infected[neighbor] = true;
+            }
+        }
+        return cascade;
+    }
+
+    // Optimized path: non-delayed cascade with cutoff
+    inline std::vector<std::tuple<int, double, double>> generate_cascade_with_cutoff(const std::vector<int>& seed)
+    {
+        const int estimated_size = std::min(n_nodes_, static_cast<int>(seed.size() * 10));
+        std::vector<std::tuple<int, double, double>> cascade;
+        cascade.reserve(estimated_size);
+        
+        std::deque<std::pair<int,double>> active;
+        std::vector<bool> infected(n_nodes_, false);
+        
+        // Only include seeds if time 0 is within cutoff
+        if (INITIAL_TIME <= cutoff_time_) {
+            for (int node : seed) {
+                active.push_back(std::make_pair(node, INITIAL_TIME));
+                infected[node] = true;
+                cascade.push_back(std::make_tuple(node, INITIAL_TIME, INITIAL_SYMPTOM));
+            }
+        }
+        
+        while (!active.empty())
+        {
+            std::pair<int,double> current = active.front();
+            active.pop_front();
+            int node = current.first;
+            double time = current.second;
+            
+            // Early termination: if current time exceeds cutoff, stop processing
+            if (time > cutoff_time_) {
+                break;
+            }
+            
+            for (int j = 0; j < graph_[node].size(); ++j)
+            {
+                int neighbor = graph_[node][j];
+                if (infected[neighbor]) {
+                    continue;
+                }
+                
+                double next_time = time + DEFAULT_DELAY;
+                
+                // Skip neighbors beyond cutoff
+                if (next_time > cutoff_time_) {
+                    continue;
+                }
+                
+                double p = edge_probabilities_? edge_probs_[node][j] : probability_;
+                if (uniform_dist_(rng_) > p) {
+                    continue;
+                }
+                
+                double q = symptomatic_? node_symp_probs_[neighbor] : symptom_probability_;
+                
+                if (uniform_dist_(rng_) < q) {
+                    cascade.push_back(std::make_tuple(neighbor, next_time, HAS_SYMPTOM));
+                } else {
+                    cascade.push_back(std::make_tuple(neighbor, next_time, NO_SYMPTOM));
+                }
+                
+                active.push_back(std::make_pair(neighbor, next_time));
+                infected[neighbor] = true;
             }
         }
         return cascade;
@@ -302,70 +498,13 @@ public:
         {
             return generate_cascade_pq(seed);
         }
-        std::vector<std::tuple<int, double, double>> cascade = {};
-        // Make a priority queue of active nodes and initialize with the seed
-        std::list<std::pair<int,double>> active;
-        std::vector<bool> infected(n_nodes_, false);
         
-        // Only include seeds if time 0 is within cutoff
-        if (!use_cutoff_ || INITIAL_TIME <= cutoff_time_) {
-            for (int node : seed) {
-                active.push_back(std::make_pair(node, INITIAL_TIME));
-                infected[node] = true;
-            }
-            // Include the seed in the cascade with 0 as symptom and time (node, time, symptom)
-            for (int node : seed) {
-                cascade.push_back(std::make_tuple(node, INITIAL_TIME, INITIAL_SYMPTOM));
-            }
+        // Route to optimized path based on cutoff usage
+        if (use_cutoff_) {
+            return generate_cascade_with_cutoff(seed);
+        } else {
+            return generate_cascade_fast(seed);
         }
-        while (!active.empty())
-        {
-            std::pair<int,double> current = active.front();
-            active.pop_front();
-            int node = current.first;
-            double time = current.second;
-            
-            // Early termination: if current time exceeds cutoff, stop processing
-            if (use_cutoff_ && time > cutoff_time_) {
-                break;
-            }
-            
-            // For each neighbor of the node
-            for (int j = 0; j < graph_[node].size(); ++j)
-            {
-                int neighbor = graph_[node][j];
-                if (infected[neighbor])
-                {
-                    continue;
-                }
-                
-                // Calculate next time (fixed 1.0 delay in non-delayed mode)
-                double next_time = time + DEFAULT_DELAY;
-                
-                // Skip neighbors beyond cutoff
-                if (use_cutoff_ && next_time > cutoff_time_) {
-                    continue;
-                }
-                
-                double p = edge_probabilities_? edge_probs_[node][j] : probability_;
-                double q = symptomatic_? node_symp_probs_[neighbor] : symptom_probability_;
-                if (uniform_dist_(rng_) > p)
-                {
-                    continue;
-                }
-                if (uniform_dist_(rng_) < q)
-                {
-                    cascade.push_back(std::make_tuple(neighbor, next_time, HAS_SYMPTOM));
-                }
-                else
-                {
-                    cascade.push_back(std::make_tuple(neighbor, next_time, NO_SYMPTOM));
-                }
-                active.push_back(std::make_pair(neighbor, next_time));
-                infected[neighbor] = true;
-            }
-        }
-        return cascade;
     }
 
     std::vector<std::vector<std::tuple<int,double,double>>> generate_cascades(const std::vector<int>& seed, int n_cascades)
