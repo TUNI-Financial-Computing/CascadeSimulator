@@ -227,6 +227,7 @@ public:
         std::vector<bool> infected(n_nodes_, false);
         std::vector<bool> is_active(n_nodes_, false);
         
+
         for (int node : seed) {
             active.push(QNode(node, INITIAL_TIME));
             infected[node] = true;
@@ -249,6 +250,7 @@ public:
             // For each neighbor of the node
             for (int j = 0; j < graph_[node].size(); ++j)
             {
+                
                 int neighbor = graph_[node][j];
                 if (infected[neighbor]) {
                     continue;
@@ -260,8 +262,8 @@ public:
                 }
                 
                 double delay = time + get_delay(node, neighbor);
-                double q = symptomatic_? node_symp_probs_[neighbor] : symptom_probability_;
                 
+                double q = symptomatic_? node_symp_probs_[neighbor] : symptom_probability_;
                 if (uniform_dist_(rng_) < q) {
                     cascade.push_back(std::make_tuple(neighbor, delay, HAS_SYMPTOM));
                 } else {
@@ -273,6 +275,7 @@ public:
                 is_active[neighbor] = true;
             }
         }
+        
         return cascade;
     }
 
