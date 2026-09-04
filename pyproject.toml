@@ -4,7 +4,8 @@ version = "0.1.0"
 description = "High-performance Python package for simulating cascades in networks using the Independent Cascade (IC) model with C++ backend"
 readme = "README.md"
 authors = [
-    { name = "kbaltakys", email = "kbaltakys@gmail.com" }
+    { name = "Henri Hansen" },
+    { name = "Kęstutis Baltakys" }
 ]
 requires-python = ">=3.8"
 dependencies = [
