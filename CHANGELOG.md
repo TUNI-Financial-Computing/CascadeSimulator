@@ -54,4 +54,3 @@ Initial public release.
 
 ---
 
-**Note**: This is a pre-release changelog. Version 0.1.0 will be tagged upon first PyPI publication.
