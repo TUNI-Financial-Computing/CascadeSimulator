@@ -48,12 +48,6 @@
 - [x] **Results tracking** - JSON + Markdown reports in benchmarks/results/
 - [x] **Optimization** - C++14, compiler optimizations enabled
 
-### CI/CD
-- [x] **GitHub Actions** - Multi-platform testing (Ubuntu, macOS, Windows)
-- [x] **Python matrix** - Tests across Python 3.8-3.12
-- [x] **Linting** - black, ruff, mypy configured
-- [x] **Coverage** - Codecov integration ready
-
 ---
 
 ## 📊 Performance Summary
@@ -78,7 +72,7 @@
 - [x] Name: `cascadesimulator`
 - [x] Version: `0.1.0`
 - [x] Description: High-performance cascade simulation
-- [x] Author: kbaltakys
+- [x] Author: Henri Hansen and Kęstutis Baltakys
 - [x] Python requires: >=3.8
 - [x] Dependencies: networkx>=2.5
 - [x] Keywords: network, cascade, simulation, independent-cascade
