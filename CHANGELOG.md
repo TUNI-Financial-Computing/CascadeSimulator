@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Testing plan and baseline results documentation
 - Codebase analysis and implementation planning documents
 
-## [1.0.0] - YYYY-MM-DD (Pending Release)
+## [0.1.0] - YYYY-MM-DD (Pending Release)
 
 Initial public release.
 
@@ -54,4 +54,4 @@ Initial public release.
 
 ---
 
-**Note**: This is a pre-release changelog. Version 1.0.0 will be tagged upon first PyPI publication.
+**Note**: This is a pre-release changelog. Version 0.1.0 will be tagged upon first PyPI publication.
