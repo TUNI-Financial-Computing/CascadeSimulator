@@ -466,7 +466,8 @@ If you use CascadeSimulator in your research, please cite:
   title   = {CascadeSimulator},
   year    = {2026},
   version = {0.1.0},
-  url     = {https://github.com/TUNI-Financial-Computing/CascadeSimulator}
+  doi     = {10.5281/zenodo.22299718},
+  url     = {https://doi.org/10.5281/zenodo.22299718}
 }
 ```
 
