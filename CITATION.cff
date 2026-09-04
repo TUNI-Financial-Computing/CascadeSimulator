@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: >-
+  If you use CascadeSimulator in your research, please cite the software
+  using the metadata below.
+title: CascadeSimulator
+type: software
+version: 0.1.0
+authors:
+  - family-names: Hansen
+    given-names: Henri
+    orcid: "https://orcid.org/0000-0003-4052-6173"
+    affiliation: Tampere University
+  - family-names: Baltakys
+    given-names: Kęstutis
+    orcid: "https://orcid.org/0000-0003-2980-2544"
+    affiliation: Tampere University
+abstract: >-
+  A high-performance Python package for simulating cascades in networks using
+  the Independent Cascade model, with a C++ backend.
+repository-code: https://github.com/TUNI-Financial-Computing/CascadeSimulator
+license: MIT
+keywords:
+  - cascade simulation
+  - diffusion
+  - independent cascade model
+  - network science
+  - social networks
