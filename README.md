@@ -5,6 +5,8 @@
 
 CascadeSimulator is a Python package for simulating cascades in networks using various cascade models. It utilizes networkx for graph creation and implements an Independent Cascade model (IC) for simulating the spread of information or influence through networks.
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22299717.svg)](https://doi.org/10.5281/zenodo.22299717)
+
 ## Installation
 
 ### Prerequisites
