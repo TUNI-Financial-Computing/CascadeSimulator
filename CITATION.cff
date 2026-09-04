@@ -5,6 +5,8 @@ message: >-
 title: CascadeSimulator
 type: software
 version: 0.1.0
+doi: "10.5281/zenodo.22299718"
+date-released: 2026-09-04
 authors:
   - family-names: Hansen
     given-names: Henri
