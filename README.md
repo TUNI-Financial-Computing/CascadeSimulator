@@ -461,12 +461,12 @@ For development and contribution questions, see [CONTRIBUTING.md](CONTRIBUTING.m
 If you use CascadeSimulator in your research, please cite:
 
 ```bibtex
-@software{cascadesimulator2026,
-  title = {CascadeSimulator: High-Performance Cascade Simulation for Network Analysis},
-  author = {{TUNI Financial Computing}},
-  year = {2026},
-  url = {https://github.com/TUNI-Financial-Computing/CascadeSimulator},
-  version = {1.0.0}
+@software{hansen_baltakys_2026_cascadesimulator,
+  author  = {Henri Hansen and Kęstutis Baltakys},
+  title   = {CascadeSimulator},
+  year    = {2026},
+  version = {0.1.0},
+  url     = {https://github.com/TUNI-Financial-Computing/CascadeSimulator}
 }
 ```
 
